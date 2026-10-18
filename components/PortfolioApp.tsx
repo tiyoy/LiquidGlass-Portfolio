@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   ArrowDownRight,
   ArrowRight,
@@ -129,7 +129,7 @@ function GlassSectionTitle({
   description,
 }: {
   eyebrow: string;
-  title: string;
+  title: ReactNode;
   description?: string;
 }) {
   return (
