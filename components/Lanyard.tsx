@@ -806,6 +806,7 @@ const Lanyard = ({
   const settingsRef = useRef<Settings | null>(null);
   const applyRef = useRef<(() => void) | null>(null);
 
+  // eslint-disable-next-line react-hooks/refs
   settingsRef.current = {
     frontImage,
     backImage,

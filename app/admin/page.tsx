@@ -168,6 +168,7 @@ function ImageUploadField({
       <div className="avatar-upload-control">
         <div className={previewClass}>
           {imageValue ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img src={imageValue} alt={`Pratinjau ${label}`} />
           ) : aspect === "landscape" ? (
             <FolderKanban size={28} />

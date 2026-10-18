@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 declare module 'three' {
   export type Vector3 = any;
   export type Quaternion = any;
