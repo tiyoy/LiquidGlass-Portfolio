@@ -1,0 +1,17 @@
+name: Supabase Keep Alive Ping
+
+on:
+  schedule:
+    # Menjalankan ping setiap hari pada jam 00:00 dan 12:00 UTC (sesuaikan jadwal)
+    - cron: '0 0,12 * * *'
+  workflow_dispatch: # Memungkinkan Anda menjalankan manual dari tab Actions
+
+jobs:
+  ping-supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase API
+        run: |
+          curl -X GET "${{ secrets.SUPABASE_URL }}/rest/v1/" \
+            -H "apikey: ${{ secrets.SUPABASE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}"
