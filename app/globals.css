@@ -306,3 +306,92 @@ html {
   html { scroll-snap-type: y proximity; }
   .section-anchor { scroll-snap-stop: normal; }
 }
+
+/* =====================================================================
+   LOADING SCREEN (components/LoadingScreen.tsx)
+   Animasi 0 - 100% + keterangan "Memuat asset". Progresnya nyata: font, data database,
+   gambar, kode & kartu lanyard 3D (lihat lib/loader-progress.ts).
+   ===================================================================== */
+.app-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: grid;
+  place-items: center;
+  background: #06060f;
+  color: #fff;
+  transition: opacity .65s ease, visibility .65s ease; /* durasi harus sama dengan FADE_MS di LoadingScreen.tsx */
+  /* pengaman: kalau JavaScript gagal berjalan, layar tetap hilang sendiri setelah 25 detik */
+  animation: loader-failsafe 0s linear 25s forwards;
+}
+.app-loader.is-leaving { opacity: 0; visibility: hidden; pointer-events: none; }
+@keyframes loader-failsafe { to { opacity: 0; visibility: hidden; pointer-events: none; } }
+
+.app-loader-ambient {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(520px 520px at 18% 14%, rgba(120, 100, 255, .24), transparent 70%),
+    radial-gradient(580px 580px at 86% 90%, rgba(70, 170, 255, .17), transparent 70%);
+}
+.app-loader-inner { position: relative; display: grid; justify-items: center; gap: 26px; padding: 24px; }
+
+.loader-ring {
+  position: relative;
+  width: min(176px, 46vw);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .03);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .06) inset, 0 20px 60px rgba(90, 80, 220, .2);
+  backdrop-filter: blur(10px);
+}
+.loader-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.loader-ring-track { fill: none; stroke: rgba(255, 255, 255, .09); stroke-width: 3; }
+.loader-ring-bar {
+  fill: none;
+  stroke: url(#loaderGradient);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgba(140, 160, 255, .55));
+}
+.loader-percent {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  font-family: var(--display);
+  font-weight: 800;
+  letter-spacing: -.04em;
+  font-variant-numeric: tabular-nums;
+}
+.loader-percent b { font-size: clamp(38px, 10vw, 50px); line-height: 1; }
+.loader-percent span { font-size: 18px; font-weight: 700; color: #a8aac7; }
+
+.loader-caption {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  font: 500 12px var(--mono);
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: #a8aac7;
+}
+.loader-dots { display: inline-flex; margin-left: 6px; }
+.loader-dots i { width: 3px; height: 3px; margin: 0 1.5px; border-radius: 50%; background: currentColor; opacity: .25; animation: loader-dot 1.2s infinite; }
+.loader-dots i:nth-child(2) { animation-delay: .2s; }
+.loader-dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes loader-dot { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+/* Selama loading: halaman tidak bisa di-scroll dan animasi halaman dijeda,
+   jadi animasi hero baru mulai tepat saat layar loading terbuka. */
+html.is-loading { overflow: hidden; }
+html.is-loading main.site-shell *,
+html.is-loading main.site-shell *::before,
+html.is-loading main.site-shell *::after { animation-play-state: paused !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-loader { transition-duration: .01ms; }
+  .loader-dots i { animation: none; opacity: .6; }
+}

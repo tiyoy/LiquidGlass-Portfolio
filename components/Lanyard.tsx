@@ -40,6 +40,8 @@ export interface LanyardProps {
   breeze?: number;
   interactive?: boolean;
   intro?: boolean;
+  /** Dipanggil setelah gambar kartu terpasang dan frame pertama tergambar (atau WebGL tidak tersedia). */
+  onReady?: () => void;
   className?: string;
   style?: CSSProperties;
 }
@@ -65,6 +67,7 @@ interface Settings {
   breeze: number;
   interactive: boolean;
   intro: boolean;
+  onReady?: () => void;
 }
 
 interface Images {
@@ -799,6 +802,7 @@ const Lanyard = ({
   breeze = 0.5,
   interactive = true,
   intro = true,
+  onReady,
   className = '',
   style
 }: LanyardProps) => {
@@ -827,7 +831,8 @@ const Lanyard = ({
     elasticity,
     breeze,
     interactive,
-    intro
+    intro,
+    onReady
   };
 
   useEffect(() => {
@@ -842,6 +847,8 @@ const Lanyard = ({
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     } catch {
+      // WebGL tidak tersedia: tetap beri tahu bahwa lanyard "selesai" supaya loading screen tidak menunggu.
+      settingsRef.current?.onReady?.();
       return undefined;
     }
     renderer.setClearColor(0x000000, 0);
@@ -958,6 +965,7 @@ const Lanyard = ({
     let hovering = false;
     let press: Press | null = null;
     let imageToken = 0;
+    let readied = false;
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
     const start = () => {
@@ -1059,6 +1067,12 @@ const Lanyard = ({
           images.strap = strap;
           paintFaces();
           repaintStrap();
+          // Setelah gambar kartu terpasang & satu frame tergambar, beri tahu pemanggil (sekali saja).
+          if (!readied) {
+            readied = true;
+            render();
+            requestAnimationFrame(() => settingsRef.current?.onReady?.());
+          }
         });
       }
       const faceKey = `${layoutKey}|${s.cardColor}|${s.imageFit}`;

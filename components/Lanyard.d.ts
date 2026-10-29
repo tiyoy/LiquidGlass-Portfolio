@@ -21,6 +21,8 @@ export type LanyardProps = {
   breeze?: number;
   interactive?: boolean;
   intro?: boolean;
+  /** Dipanggil setelah gambar kartu terpasang dan frame pertama tergambar (atau WebGL tidak tersedia). */
+  onReady?: () => void;
   className?: string;
   style?: CSSProperties;
 };

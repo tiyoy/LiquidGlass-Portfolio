@@ -39,9 +39,13 @@ import {
   revokeLanyardArt,
   type LanyardArt,
 } from "@/lib/lanyard-art";
+import LoadingScreen from "@/components/LoadingScreen";
+import { computeLoaderTarget, isLoaderComplete } from "@/lib/loader-progress";
 
 // Lanyard 3D (three.js) dimuat belakangan & hanya di browser, supaya halaman tetap cepat tampil.
 const Lanyard = dynamic(() => import("./Lanyard"), { ssr: false });
+
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 const navItems = [
   { id: "home", label: "Beranda", icon: House },
@@ -162,11 +166,108 @@ export default function PortfolioApp() {
   });
   const [lanyardArt, setLanyardArt] = useState<LanyardArt | null>(null);
 
+  // --- Status loading screen: setiap tahap bernilai true kalau benar-benar sudah selesai ---
+  const [fontsReady, setFontsReady] = useState(false);
+  const [dataReady, setDataReady] = useState(false);
+  const [imageProgress, setImageProgress] = useState<{ done: number; total: number } | null>(null);
+  const [chunkReady, setChunkReady] = useState(false);
+  const [artFor, setArtFor] = useState<SiteData["profile"] | null>(null);
+  const [lanyardReady, setLanyardReady] = useState(false);
+  const [forceDone, setForceDone] = useState(false);
+  const [loaderGone, setLoaderGone] = useState(false);
+  // Kartu lanyard sudah dibuat dari data profil yang sekarang (bukan data bawaan sebelum database terbaca)
+  const artReady = artFor !== null && artFor === data.profile;
+  // Lanyard baru dipasang setelah data final + kartunya siap, supaya "frame pertama" = tampilan final.
+  const lanyardVisible = lanyardArt !== null && (loaderGone || (dataReady && artReady));
+
+  // 1) Font situs
+  useEffect(() => {
+    let alive = true;
+    const loading = Promise.all([
+      document.fonts.load("800 32px Manrope"),
+      document.fonts.load("600 16px 'DM Sans'"),
+      document.fonts.load("500 14px 'DM Mono'"),
+    ])
+      .then(() => document.fonts.ready)
+      .catch(() => undefined);
+    Promise.race([loading, wait(5000)]).then(() => {
+      if (alive) setFontsReady(true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // 2) Kode lanyard 3D (three.js) mulai diunduh sejak awal, paralel dengan proses lain
+  useEffect(() => {
+    let alive = true;
+    import("./Lanyard")
+      .then(() => {
+        if (alive) setChunkReady(true);
+      })
+      .catch(() => {
+        if (alive) {
+          setChunkReady(true);
+          setLanyardReady(true);
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Pengaman: kalau ada tahap yang macet (jaringan sangat lambat), layar tetap dibuka setelah 20 detik.
+  useEffect(() => {
+    const timer = window.setTimeout(() => setForceDone(true), 20000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  // Pengaman lanyard: kalau sinyal "siap" dari komponen Lanyard tidak datang, anggap siap setelah 3 detik.
+  useEffect(() => {
+    if (!lanyardVisible || lanyardReady) return;
+    const timer = window.setTimeout(() => setLanyardReady(true), 3000);
+    return () => window.clearTimeout(timer);
+  }, [lanyardVisible, lanyardReady]);
+
+  // 3) Gambar dari database (cover proyek & foto testimoni) dimuat dan di-decode sampai selesai.
+  //    Foto profil dimuat saat kartu lanyard dibuat (buildLanyardArt menunggu fotonya).
+  useEffect(() => {
+    if (!dataReady) return;
+    const urls = Array.from(
+      new Set(
+        [
+          ...data.projects.map((project) => project.imageUrl),
+          ...data.testimonials.map((item) => item.avatarUrl),
+        ].filter((url): url is string => Boolean(url)),
+      ),
+    );
+    let alive = true;
+    let done = 0;
+    setImageProgress({ done: 0, total: urls.length });
+    urls.forEach((url) => {
+      const image = new Image();
+      const finish = () => {
+        if (!alive) return;
+        done += 1;
+        setImageProgress({ done, total: urls.length });
+      };
+      image.onload = () => {
+        (image.decode ? image.decode() : Promise.resolve()).catch(() => undefined).then(finish);
+      };
+      image.onerror = finish;
+      image.src = url;
+    });
+    return () => {
+      alive = false;
+    };
+  }, [dataReady, data.projects, data.testimonials]);
+
   // Gambar kartu & tali lanyard dibuat dari data profil, jadi ikut berubah saat profil diubah di admin.
   useEffect(() => {
     let cancelled = false;
     let made: LanyardArt | null = null;
-    buildLanyardArt(data.profile)
+    const profileData = data.profile;
+    buildLanyardArt(profileData)
       .then((art) => {
         if (cancelled) {
           revokeLanyardArt(art);
@@ -174,8 +275,15 @@ export default function PortfolioApp() {
         }
         made = art;
         setLanyardArt(art);
+        setArtFor(profileData);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        // Kartu gagal dibuat: loading screen tidak menunggu lanyard.
+        if (!cancelled) {
+          setArtFor(profileData);
+          setLanyardReady(true);
+        }
+      });
     return () => {
       cancelled = true;
       revokeLanyardArt(made);
@@ -232,6 +340,9 @@ export default function PortfolioApp() {
       })
       .catch(() => {
         /* Keep demo content visible when the database is not set up yet. */
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setDataReady(true);
       });
     return () => controller.abort();
   }, []);
@@ -308,7 +419,23 @@ export default function PortfolioApp() {
     }
   }
 
+  const loaderState = {
+    fonts: fontsReady,
+    data: dataReady,
+    images: imageProgress,
+    chunk: chunkReady,
+    art: artReady,
+    lanyard: lanyardReady,
+    forced: forceDone,
+  };
+  const loaderTarget = computeLoaderTarget(loaderState);
+  const loaderComplete = isLoaderComplete(loaderState);
+
   return (
+    <>
+    {!loaderGone && (
+      <LoadingScreen target={loaderTarget} complete={loaderComplete} onDone={() => setLoaderGone(true)} />
+    )}
     <main className="site-shell">
       <div className="ambient ambient-one" />
       <div className="ambient ambient-two" />
@@ -424,7 +551,7 @@ export default function PortfolioApp() {
             </div>
           </div>
           <div className="hero-lanyard">
-            {lanyardArt && (
+            {lanyardArt && lanyardVisible && (
               <Lanyard
                 frontImage={lanyardArt.front}
                 backImage={lanyardArt.back}
@@ -436,6 +563,7 @@ export default function PortfolioApp() {
                 size={0.8}
                 strapLength={0.08}
                 strapWidth={0.8}
+                onReady={() => setLanyardReady(true)}
                 style={{
                   position: "absolute",
                   inset: 0,
@@ -1015,5 +1143,6 @@ export default function PortfolioApp() {
         })}
       </nav>
     </main>
+    </>
   );
 }
