@@ -2,9 +2,8 @@ name: Supabase Keep Alive Ping
 
 on:
   schedule:
-    # Menjalankan ping otomatis setiap 3 hari sekali (Jam 05:00 UTC)
-    # Ini sudah sangat cukup untuk mencegah pause 7 hari
-    - cron: '0 5 */3 * *'
+    # Menjalankan ping otomatis setiap hari (Jam 05:37 UTC / 12:37 WIB)
+    - cron: '37 5 * * *'
   workflow_dispatch: # Tombol manual di tab Actions
 
 jobs:
